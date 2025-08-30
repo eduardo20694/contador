@@ -15,14 +15,19 @@
   .clicks { color: green; font-weight: bold; font-size: 18px; }
   .error { color: red; font-weight: bold; margin-top: 10px; }
   .loader { display: none; margin: 10px 0; font-style: italic; }
-  .click-details { font-size: 13px; margin-top: 8px; color: #555; max-height: 150px; overflow-y: auto; }
-  .site-header { display: flex; justify-content: space-between; align-items: center; }
-  .site-header h3 { margin: 0; }
+  .click-details { font-size: 13px; margin-top: 8px; color: #555; max-height: 150px; overflow-y: auto; display: none; }
+  .site-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+  .site-header h3 { margin: 0; display: flex; align-items: center; gap: 5px; }
+  .actions { display: flex; gap: 10px; }
+  .remove-btn { background: #dc3545; padding: 6px 10px; border-radius: 5px; }
+  .remove-btn:hover { background: #a71d2a; }
+  .arrow { transition: transform 0.3s; font-size: 16px; }
+  .arrow.open { transform: rotate(90deg); }
 </style>
 </head>
 <body>
 
-<h1>Dashboard de Cliques</h1>
+<h1>📊 Dashboard de Cliques</h1>
 
 <h2>Adicionar Novo Site</h2>
 <input type="text" id="siteName" placeholder="Nome do site">
@@ -37,7 +42,7 @@
 
 <script>
 const API_URL = "https://clicks-production-b785.up.railway.app";
-let siteElements = {}; // Guarda referência dos elementos para atualizar em tempo real
+let siteElements = {};
 
 async function fetchSites() {
   const loader = document.getElementById("loader");
@@ -58,9 +63,12 @@ async function fetchSites() {
       const div = document.createElement("div");
       div.className = "site";
       div.innerHTML = `
-        <div class="site-header">
-          <h3>${site.name}</h3>
-          <a href="/r/${site.id}" target="_blank">Visitar site</a>
+        <div class="site-header" onclick="toggleDetails(${site.id})">
+          <h3><span class="arrow" id="arrow-${site.id}">▶</span> ${site.name}</h3>
+          <div class="actions">
+            <a href="${API_URL}/r/${site.id}" target="_blank">Visitar</a>
+            <button class="remove-btn" onclick="event.stopPropagation(); removeSite(${site.id})">Remover</button>
+          </div>
         </div>
         <p>Clique: <span class="clicks" id="clicks-${site.id}">0</span></p>
         <div class="click-details" id="clickDetails-${site.id}"></div>
@@ -125,10 +133,38 @@ async function addSite() {
   }
 }
 
+async function removeSite(siteId) {
+  if (!confirm("Tem certeza que deseja remover este site?")) return;
+  try {
+    // vou supor que você tem um endpoint DELETE /api/sites/<id>
+    const res = await fetch(`${API_URL}/api/sites/${siteId}`, { method: "DELETE" });
+    if (res.ok) {
+      await fetchSites();
+    } else {
+      alert("Erro ao remover site");
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Erro de conexão ao remover site");
+  }
+}
+
+function toggleDetails(siteId) {
+  const detailsDiv = document.getElementById(`clickDetails-${siteId}`);
+  const arrow = document.getElementById(`arrow-${siteId}`);
+  if (detailsDiv.style.display === "block") {
+    detailsDiv.style.display = "none";
+    arrow.classList.remove("open");
+  } else {
+    detailsDiv.style.display = "block";
+    arrow.classList.add("open");
+  }
+}
+
 // Inicializa
 fetchSites().then(() => {
   updateClicks();
-  setInterval(updateClicks, 5000); // Atualiza cliques a cada 5 segundos
+  setInterval(updateClicks, 5000);
 });
 </script>
 
