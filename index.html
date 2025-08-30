@@ -1,172 +1,50 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard de Cliques</title>
-<style>
-  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background: #f4f4f9; color: #333; }
-  h1 { color: #222; margin-bottom: 20px; }
-  input, button { padding: 10px; margin: 5px 0; font-size: 16px; }
-  input { width: 300px; }
-  button { cursor: pointer; background-color: #007BFF; color: #fff; border: none; border-radius: 5px; transition: background 0.3s; }
-  button:hover { background-color: #0056b3; }
-  .site { border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 8px; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-  .clicks { color: green; font-weight: bold; font-size: 18px; }
-  .error { color: red; font-weight: bold; margin-top: 10px; }
-  .loader { display: none; margin: 10px 0; font-style: italic; }
-  .click-details { font-size: 13px; margin-top: 8px; color: #555; max-height: 150px; overflow-y: auto; display: none; }
-  .site-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
-  .site-header h3 { margin: 0; display: flex; align-items: center; gap: 5px; }
-  .actions { display: flex; gap: 10px; }
-  .remove-btn { background: #dc3545; padding: 6px 10px; border-radius: 5px; }
-  .remove-btn:hover { background: #a71d2a; }
-  .arrow { transition: transform 0.3s; font-size: 16px; }
-  .arrow.open { transform: rotate(90deg); }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard de Cliques</title>
+
+  <!-- Manifest PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#00ffcc">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Renda Extra">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+
+  <!-- CSS externo -->
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<h1>📊 Dashboard de Cliques</h1>
+  <header>
+    <h1> Dashboard de Cliques</h1>
+  </header>
 
-<h2>Adicionar Novo Site</h2>
-<input type="text" id="siteName" placeholder="Nome do site">
-<input type="text" id="siteUrl" placeholder="URL do site">
-<button onclick="addSite()">Adicionar Site</button>
-<div id="addError" class="error"></div>
+  <main>
+    <!-- Adicionar site -->
+    <section class="add-site">
+      <h2>Adicionar Novo Site</h2>
+      <input type="text" id="siteName" placeholder="Nome do site">
+      <input type="text" id="siteUrl" placeholder="URL do site">
+      <button onclick="addSite()">➕ Adicionar Site</button>
+      <div id="addError" class="error"></div>
+    </section>
 
-<h2>Sites Cadastrados</h2>
-<div class="loader" id="loader">Carregando sites...</div>
-<div id="sitesList"></div>
-<div id="listError" class="error"></div>
+    <!-- Sites cadastrados -->
+    <section class="sites">
+      <h2>Sites Cadastrados</h2>
+      <div class="loader" id="loader">⏳ Carregando sites...</div>
+      <div id="sitesList"></div>
+      <div id="listError" class="error"></div>
+    </section>
+  </main>
 
-<script>
-const API_URL = "https://clicks-production-b785.up.railway.app";
-let siteElements = {};
+  <!-- Notificações de cliques -->
+  <div id="notification-container"></div>
 
-async function fetchSites() {
-  const loader = document.getElementById("loader");
-  const container = document.getElementById("sitesList");
-  const listError = document.getElementById("listError");
-
-  loader.style.display = "block";
-  listError.textContent = "";
-  container.innerHTML = "";
-  siteElements = {};
-
-  try {
-    const res = await fetch(`${API_URL}/api/sites`);
-    if (!res.ok) throw new Error(`Falha ao listar sites: ${res.status} ${res.statusText}`);
-    const sites = await res.json();
-
-    for (const site of sites) {
-      const div = document.createElement("div");
-      div.className = "site";
-      div.innerHTML = `
-        <div class="site-header" onclick="toggleDetails(${site.id})">
-          <h3><span class="arrow" id="arrow-${site.id}">▶</span> ${site.name}</h3>
-          <div class="actions">
-            <a href="${API_URL}/r/${site.id}" target="_blank">Visitar</a>
-            <button class="remove-btn" onclick="event.stopPropagation(); removeSite(${site.id})">Remover</button>
-          </div>
-        </div>
-        <p>Clique: <span class="clicks" id="clicks-${site.id}">0</span></p>
-        <div class="click-details" id="clickDetails-${site.id}"></div>
-      `;
-      container.appendChild(div);
-      siteElements[site.id] = div;
-    }
-
-    if (sites.length === 0) container.innerHTML = "<p>Nenhum site cadastrado.</p>";
-  } catch (err) {
-    console.error(err);
-    listError.textContent = `Erro ao carregar sites: ${err.message}`;
-  } finally {
-    loader.style.display = "none";
-  }
-}
-
-async function updateClicks() {
-  for (const siteId in siteElements) {
-    try {
-      const statsRes = await fetch(`${API_URL}/api/stats/${siteId}`);
-      if (!statsRes.ok) throw new Error(`Falha ao buscar stats: ${statsRes.status}`);
-      const stats = await statsRes.json();
-
-      document.getElementById(`clicks-${siteId}`).textContent = stats.total_clicks;
-      const detailsDiv = document.getElementById(`clickDetails-${siteId}`);
-      detailsDiv.innerHTML = "";
-      stats.clicks.forEach(c => {
-        detailsDiv.innerHTML += `Cidade: ${c.city || "-"}, Região: ${c.region || "-"}, País: ${c.country || "-"}, Hora: ${c.created_at}<br>`;
-      });
-    } catch (err) {
-      console.error(err);
-    }
-  }
-}
-
-async function addSite() {
-  const name = document.getElementById("siteName").value.trim();
-  const url = document.getElementById("siteUrl").value.trim();
-  const addError = document.getElementById("addError");
-  addError.textContent = "";
-  if (!name || !url) { addError.textContent = "Preencha nome e URL!"; return; }
-
-  try {
-    const res = await fetch(`${API_URL}/api/sites`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, url })
-    });
-    const data = await res.json();
-    if (res.ok && data.status === "ok") {
-      document.getElementById("siteName").value = "";
-      document.getElementById("siteUrl").value = "";
-      await fetchSites();
-      updateClicks();
-    } else {
-      addError.textContent = data.message || "Erro ao adicionar site";
-    }
-  } catch (err) {
-    console.error(err);
-    addError.textContent = `Erro de conexão: ${err.message}`;
-  }
-}
-
-async function removeSite(siteId) {
-  if (!confirm("Tem certeza que deseja remover este site?")) return;
-  try {
-    // vou supor que você tem um endpoint DELETE /api/sites/<id>
-    const res = await fetch(`${API_URL}/api/sites/${siteId}`, { method: "DELETE" });
-    if (res.ok) {
-      await fetchSites();
-    } else {
-      alert("Erro ao remover site");
-    }
-  } catch (err) {
-    console.error(err);
-    alert("Erro de conexão ao remover site");
-  }
-}
-
-function toggleDetails(siteId) {
-  const detailsDiv = document.getElementById(`clickDetails-${siteId}`);
-  const arrow = document.getElementById(`arrow-${siteId}`);
-  if (detailsDiv.style.display === "block") {
-    detailsDiv.style.display = "none";
-    arrow.classList.remove("open");
-  } else {
-    detailsDiv.style.display = "block";
-    arrow.classList.add("open");
-  }
-}
-
-// Inicializa
-fetchSites().then(() => {
-  updateClicks();
-  setInterval(updateClicks, 5000);
-});
-</script>
-
+  <!-- JS externo -->
+  <script src="script.js"></script>
 </body>
 </html>
