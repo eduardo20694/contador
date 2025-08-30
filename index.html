@@ -1,43 +1,45 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard de Cliques</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f9; color: #333; }
-    h1, h2 { color: #222; }
-    input, button { padding: 10px; margin: 5px 0; font-size: 16px; }
-    input { width: 250px; }
-    button { cursor: pointer; background-color: #007BFF; color: #fff; border: none; border-radius: 4px; }
-    button:hover { background-color: #0056b3; }
-    .site { border: 1px solid #ccc; padding: 15px; margin-bottom: 10px; border-radius: 6px; background: #fff; }
-    .clicks { color: green; font-weight: bold; }
-    .error { color: red; font-weight: bold; margin-top: 10px; }
-    .loader { display: none; margin: 10px 0; }
-    .click-details { font-size: 14px; margin-top: 5px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard de Cliques</title>
+<style>
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background: #f4f4f9; color: #333; }
+  h1 { color: #222; margin-bottom: 20px; }
+  input, button { padding: 10px; margin: 5px 0; font-size: 16px; }
+  input { width: 300px; }
+  button { cursor: pointer; background-color: #007BFF; color: #fff; border: none; border-radius: 5px; transition: background 0.3s; }
+  button:hover { background-color: #0056b3; }
+  .site { border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 8px; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+  .clicks { color: green; font-weight: bold; font-size: 18px; }
+  .error { color: red; font-weight: bold; margin-top: 10px; }
+  .loader { display: none; margin: 10px 0; font-style: italic; }
+  .click-details { font-size: 13px; margin-top: 8px; color: #555; max-height: 150px; overflow-y: auto; }
+  .site-header { display: flex; justify-content: space-between; align-items: center; }
+  .site-header h3 { margin: 0; }
+</style>
 </head>
 <body>
 
-  <h1>Dashboard de Cliques</h1>
+<h1>Dashboard de Cliques</h1>
 
-  <h2>Adicionar Novo Site</h2>
-  <input type="text" id="siteName" placeholder="Nome do site">
-  <input type="text" id="siteUrl" placeholder="URL do site">
-  <button onclick="addSite()">Adicionar Site</button>
-  <div id="addError" class="error"></div>
+<h2>Adicionar Novo Site</h2>
+<input type="text" id="siteName" placeholder="Nome do site">
+<input type="text" id="siteUrl" placeholder="URL do site">
+<button onclick="addSite()">Adicionar Site</button>
+<div id="addError" class="error"></div>
 
-  <h2>Sites Cadastrados</h2>
-  <div class="loader" id="loader">Carregando sites...</div>
-  <div id="sitesList"></div>
-  <div id="listError" class="error"></div>
+<h2>Sites Cadastrados</h2>
+<div class="loader" id="loader">Carregando sites...</div>
+<div id="sitesList"></div>
+<div id="listError" class="error"></div>
 
 <script>
 const API_URL = "https://clicks-production-b785.up.railway.app";
+let siteElements = {}; // Guarda referência dos elementos para atualizar em tempo real
 
-// Função para listar todos sites e stats
-async function loadSites() {
+async function fetchSites() {
   const loader = document.getElementById("loader");
   const container = document.getElementById("sitesList");
   const listError = document.getElementById("listError");
@@ -45,6 +47,7 @@ async function loadSites() {
   loader.style.display = "block";
   listError.textContent = "";
   container.innerHTML = "";
+  siteElements = {};
 
   try {
     const res = await fetch(`${API_URL}/api/sites`);
@@ -52,42 +55,21 @@ async function loadSites() {
     const sites = await res.json();
 
     for (const site of sites) {
-      try {
-        const statsRes = await fetch(`${API_URL}/api/stats/${site.id}`);
-        if (!statsRes.ok) throw new Error(`Falha ao buscar stats: ${statsRes.status}`);
-        const stats = await statsRes.json();
-        const totalClicks = stats.total_clicks;
-
-        const div = document.createElement("div");
-        div.className = "site";
-
-        let clicksHTML = "";
-        if (stats.clicks.length > 0) {
-          clicksHTML = "<div class='click-details'><strong>Detalhes dos cliques:</strong><br>";
-          stats.clicks.forEach(c => {
-            clicksHTML += `Cidade: ${c.city || "-"}, Região: ${c.region || "-"}, País: ${c.country || "-"}, Hora: ${c.created_at}<br>`;
-          });
-          clicksHTML += "</div>";
-        }
-
-        div.innerHTML = `
-          <strong>${site.name}</strong><br>
-          <a href="${site.url}" target="_blank">${site.url}</a><br>
-          Cliques: <span class="clicks">${totalClicks}</span><br>
-          <button onclick="simulateClick(${site.id})">Simular Clique</button>
-          ${clicksHTML}
-        `;
-        container.appendChild(div);
-      } catch (err) {
-        console.error(err);
-        listError.textContent = `Erro ao buscar stats de ${site.name}: ${err.message}`;
-      }
+      const div = document.createElement("div");
+      div.className = "site";
+      div.innerHTML = `
+        <div class="site-header">
+          <h3>${site.name}</h3>
+          <a href="/r/${site.id}" target="_blank">Visitar site</a>
+        </div>
+        <p>Clique: <span class="clicks" id="clicks-${site.id}">0</span></p>
+        <div class="click-details" id="clickDetails-${site.id}"></div>
+      `;
+      container.appendChild(div);
+      siteElements[site.id] = div;
     }
 
-    if (sites.length === 0) {
-      container.innerHTML = "<p>Nenhum site cadastrado.</p>";
-    }
-
+    if (sites.length === 0) container.innerHTML = "<p>Nenhum site cadastrado.</p>";
   } catch (err) {
     console.error(err);
     listError.textContent = `Erro ao carregar sites: ${err.message}`;
@@ -96,17 +78,31 @@ async function loadSites() {
   }
 }
 
-// Adicionar site
+async function updateClicks() {
+  for (const siteId in siteElements) {
+    try {
+      const statsRes = await fetch(`${API_URL}/api/stats/${siteId}`);
+      if (!statsRes.ok) throw new Error(`Falha ao buscar stats: ${statsRes.status}`);
+      const stats = await statsRes.json();
+
+      document.getElementById(`clicks-${siteId}`).textContent = stats.total_clicks;
+      const detailsDiv = document.getElementById(`clickDetails-${siteId}`);
+      detailsDiv.innerHTML = "";
+      stats.clicks.forEach(c => {
+        detailsDiv.innerHTML += `Cidade: ${c.city || "-"}, Região: ${c.region || "-"}, País: ${c.country || "-"}, Hora: ${c.created_at}<br>`;
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  }
+}
+
 async function addSite() {
   const name = document.getElementById("siteName").value.trim();
   const url = document.getElementById("siteUrl").value.trim();
   const addError = document.getElementById("addError");
   addError.textContent = "";
-
-  if (!name || !url) {
-    addError.textContent = "Preencha nome e URL!";
-    return;
-  }
+  if (!name || !url) { addError.textContent = "Preencha nome e URL!"; return; }
 
   try {
     const res = await fetch(`${API_URL}/api/sites`, {
@@ -118,7 +114,8 @@ async function addSite() {
     if (res.ok && data.status === "ok") {
       document.getElementById("siteName").value = "";
       document.getElementById("siteUrl").value = "";
-      loadSites();
+      await fetchSites();
+      updateClicks();
     } else {
       addError.textContent = data.message || "Erro ao adicionar site";
     }
@@ -128,29 +125,11 @@ async function addSite() {
   }
 }
 
-// Simular clique manual
-async function simulateClick(siteId) {
-  try {
-    const res = await fetch(`${API_URL}/api/click`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ site_id: siteId })
-    });
-    const data = await res.json();
-    if (res.ok && data.status === "ok") {
-      alert(`Clique registrado! IP: ${data.ip}, Cidade: ${data.city || "-"}`);
-      loadSites();
-    } else {
-      alert(`Erro ao registrar clique: ${data.error || "desconhecido"}`);
-    }
-  } catch (err) {
-    console.error(err);
-    alert(`Erro de conexão: ${err.message}`);
-  }
-}
-
 // Inicializa
-loadSites();
+fetchSites().then(() => {
+  updateClicks();
+  setInterval(updateClicks, 5000); // Atualiza cliques a cada 5 segundos
+});
 </script>
 
 </body>
