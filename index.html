@@ -15,6 +15,7 @@
     .clicks { color: green; font-weight: bold; }
     .error { color: red; font-weight: bold; margin-top: 10px; }
     .loader { display: none; margin: 10px 0; }
+    .click-details { font-size: 14px; margin-top: 5px; }
   </style>
 </head>
 <body>
@@ -33,9 +34,9 @@
   <div id="listError" class="error"></div>
 
 <script>
-const API_URL = "https://cliques-production-7a78.up.railway.app";
+const API_URL = "https://clicks-production-b785.up.railway.app";
 
-// Função para listar todos sites
+// Função para listar todos sites e stats
 async function loadSites() {
   const loader = document.getElementById("loader");
   const container = document.getElementById("sitesList");
@@ -59,10 +60,22 @@ async function loadSites() {
 
         const div = document.createElement("div");
         div.className = "site";
+
+        let clicksHTML = "";
+        if (stats.clicks.length > 0) {
+          clicksHTML = "<div class='click-details'><strong>Detalhes dos cliques:</strong><br>";
+          stats.clicks.forEach(c => {
+            clicksHTML += `Cidade: ${c.city || "-"}, Região: ${c.region || "-"}, País: ${c.country || "-"}, Hora: ${c.created_at}<br>`;
+          });
+          clicksHTML += "</div>";
+        }
+
         div.innerHTML = `
           <strong>${site.name}</strong><br>
           <a href="${site.url}" target="_blank">${site.url}</a><br>
-          Cliques: <span class="clicks">${totalClicks}</span>
+          Cliques: <span class="clicks">${totalClicks}</span><br>
+          <button onclick="simulateClick(${site.id})">Simular Clique</button>
+          ${clicksHTML}
         `;
         container.appendChild(div);
       } catch (err) {
@@ -83,12 +96,11 @@ async function loadSites() {
   }
 }
 
-// Função para adicionar site
+// Adicionar site
 async function addSite() {
   const name = document.getElementById("siteName").value.trim();
   const url = document.getElementById("siteUrl").value.trim();
   const addError = document.getElementById("addError");
-
   addError.textContent = "";
 
   if (!name || !url) {
@@ -102,16 +114,13 @@ async function addSite() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, url })
     });
-
     const data = await res.json();
-
     if (res.ok && data.status === "ok") {
       document.getElementById("siteName").value = "";
       document.getElementById("siteUrl").value = "";
       loadSites();
     } else {
-      const msg = data.message || "Erro ao adicionar site";
-      addError.textContent = msg;
+      addError.textContent = data.message || "Erro ao adicionar site";
     }
   } catch (err) {
     console.error(err);
@@ -119,7 +128,28 @@ async function addSite() {
   }
 }
 
-// Carregar sites ao abrir a página
+// Simular clique manual
+async function simulateClick(siteId) {
+  try {
+    const res = await fetch(`${API_URL}/api/click`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ site_id: siteId })
+    });
+    const data = await res.json();
+    if (res.ok && data.status === "ok") {
+      alert(`Clique registrado! IP: ${data.ip}, Cidade: ${data.city || "-"}`);
+      loadSites();
+    } else {
+      alert(`Erro ao registrar clique: ${data.error || "desconhecido"}`);
+    }
+  } catch (err) {
+    console.error(err);
+    alert(`Erro de conexão: ${err.message}`);
+  }
+}
+
+// Inicializa
 loadSites();
 </script>
 
