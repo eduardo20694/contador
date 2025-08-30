@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard de Cliques</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    input, button { padding: 8px; margin: 5px; }
+    .site { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+    .clicks { color: green; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+  <h1>Dashboard de Cliques</h1>
+
+  <h2>Adicionar Novo Site</h2>
+  <input type="text" id="siteName" placeholder="Nome do site">
+  <input type="text" id="siteUrl" placeholder="URL do site">
+  <button onclick="addSite()">Adicionar Site</button>
+
+  <h2>Sites Cadastrados</h2>
+  <div id="sitesList"></div>
+
+<script>
+const API_URL = "https://cliques-production-7a78.up.railway.app";
+
+// Função para listar todos sites
+async function loadSites() {
+  const res = await fetch(`${API_URL}/api/sites`);
+  const sites = await res.json();
+  const container = document.getElementById("sitesList");
+  container.innerHTML = "";
+
+  for (const site of sites) {
+    // Pega os cliques
+    const statsRes = await fetch(`${API_URL}/api/stats/${site.id}`);
+    const stats = await statsRes.json();
+    const totalClicks = stats.total_clicks;
+
+    const div = document.createElement("div");
+    div.className = "site";
+    div.innerHTML = `
+      <strong>${site.name}</strong><br>
+      <a href="${site.url}" target="_blank">${site.url}</a><br>
+      Cliques: <span class="clicks">${totalClicks}</span>
+    `;
+    container.appendChild(div);
+  }
+}
+
+// Função para adicionar site
+async function addSite() {
+  const name = document.getElementById("siteName").value;
+  const url = document.getElementById("siteUrl").value;
+
+  if (!name || !url) {
+    alert("Preencha nome e URL!");
+    return;
+  }
+
+  const res = await fetch(`${API_URL}/api/sites`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, url })
+  });
+
+  const data = await res.json();
+  if (data.status === "ok") {
+    alert("Site adicionado com sucesso!");
+    document.getElementById("siteName").value = "";
+    document.getElementById("siteUrl").value = "";
+    loadSites();
+  } else {
+    alert("Erro ao adicionar site");
+  }
+}
+
+// Carregar sites ao abrir a página
+loadSites();
+</script>
+
+</body>
+</html>
