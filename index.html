@@ -5,10 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard de Cliques</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    input, button { padding: 8px; margin: 5px; }
-    .site { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f9; color: #333; }
+    h1, h2 { color: #222; }
+    input, button { padding: 10px; margin: 5px 0; font-size: 16px; }
+    input { width: 250px; }
+    button { cursor: pointer; background-color: #007BFF; color: #fff; border: none; border-radius: 4px; }
+    button:hover { background-color: #0056b3; }
+    .site { border: 1px solid #ccc; padding: 15px; margin-bottom: 10px; border-radius: 6px; background: #fff; }
     .clicks { color: green; font-weight: bold; }
+    .error { color: red; font-weight: bold; margin-top: 10px; }
+    .loader { display: none; margin: 10px 0; }
   </style>
 </head>
 <body>
@@ -19,61 +25,97 @@
   <input type="text" id="siteName" placeholder="Nome do site">
   <input type="text" id="siteUrl" placeholder="URL do site">
   <button onclick="addSite()">Adicionar Site</button>
+  <div id="addError" class="error"></div>
 
   <h2>Sites Cadastrados</h2>
+  <div class="loader" id="loader">Carregando sites...</div>
   <div id="sitesList"></div>
+  <div id="listError" class="error"></div>
 
 <script>
 const API_URL = "https://cliques-production-7a78.up.railway.app";
 
 // Função para listar todos sites
 async function loadSites() {
-  const res = await fetch(`${API_URL}/api/sites`);
-  const sites = await res.json();
+  const loader = document.getElementById("loader");
   const container = document.getElementById("sitesList");
+  const listError = document.getElementById("listError");
+
+  loader.style.display = "block";
+  listError.textContent = "";
   container.innerHTML = "";
 
-  for (const site of sites) {
-    // Pega os cliques
-    const statsRes = await fetch(`${API_URL}/api/stats/${site.id}`);
-    const stats = await statsRes.json();
-    const totalClicks = stats.total_clicks;
+  try {
+    const res = await fetch(`${API_URL}/api/sites`);
+    if (!res.ok) throw new Error(`Falha ao listar sites: ${res.status} ${res.statusText}`);
+    const sites = await res.json();
 
-    const div = document.createElement("div");
-    div.className = "site";
-    div.innerHTML = `
-      <strong>${site.name}</strong><br>
-      <a href="${site.url}" target="_blank">${site.url}</a><br>
-      Cliques: <span class="clicks">${totalClicks}</span>
-    `;
-    container.appendChild(div);
+    for (const site of sites) {
+      try {
+        const statsRes = await fetch(`${API_URL}/api/stats/${site.id}`);
+        if (!statsRes.ok) throw new Error(`Falha ao buscar stats: ${statsRes.status}`);
+        const stats = await statsRes.json();
+        const totalClicks = stats.total_clicks;
+
+        const div = document.createElement("div");
+        div.className = "site";
+        div.innerHTML = `
+          <strong>${site.name}</strong><br>
+          <a href="${site.url}" target="_blank">${site.url}</a><br>
+          Cliques: <span class="clicks">${totalClicks}</span>
+        `;
+        container.appendChild(div);
+      } catch (err) {
+        console.error(err);
+        listError.textContent = `Erro ao buscar stats de ${site.name}: ${err.message}`;
+      }
+    }
+
+    if (sites.length === 0) {
+      container.innerHTML = "<p>Nenhum site cadastrado.</p>";
+    }
+
+  } catch (err) {
+    console.error(err);
+    listError.textContent = `Erro ao carregar sites: ${err.message}`;
+  } finally {
+    loader.style.display = "none";
   }
 }
 
 // Função para adicionar site
 async function addSite() {
-  const name = document.getElementById("siteName").value;
-  const url = document.getElementById("siteUrl").value;
+  const name = document.getElementById("siteName").value.trim();
+  const url = document.getElementById("siteUrl").value.trim();
+  const addError = document.getElementById("addError");
+
+  addError.textContent = "";
 
   if (!name || !url) {
-    alert("Preencha nome e URL!");
+    addError.textContent = "Preencha nome e URL!";
     return;
   }
 
-  const res = await fetch(`${API_URL}/api/sites`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, url })
-  });
+  try {
+    const res = await fetch(`${API_URL}/api/sites`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, url })
+    });
 
-  const data = await res.json();
-  if (data.status === "ok") {
-    alert("Site adicionado com sucesso!");
-    document.getElementById("siteName").value = "";
-    document.getElementById("siteUrl").value = "";
-    loadSites();
-  } else {
-    alert("Erro ao adicionar site");
+    const data = await res.json();
+
+    if (res.ok && data.status === "ok") {
+      document.getElementById("siteName").value = "";
+      document.getElementById("siteUrl").value = "";
+      loadSites();
+    } else {
+      const msg = data.message || "Erro ao adicionar site";
+      addError.textContent = msg;
+    }
+  } catch (err) {
+    console.error(err);
+    addError.textContent = `Erro de conexão: ${err.message}`;
   }
 }
 
